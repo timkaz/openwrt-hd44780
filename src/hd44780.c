@@ -15,19 +15,19 @@
 #include <linux/fs.h>
 #include <linux/delay.h>
 #include <asm/uaccess.h>
-#include <asm/gpio.h>
+#include </home/z/o/lede/build_dir/target-mips_mips32_musl/hd44780-0.1/gpio.h>
 
 
 // You'll need to change these values to suit your board's available GPIOs
 // These are convenient (adjacent) pins on the GS-Oolite v1.0
 //      Pin ID     GPIO number
-#define HD_RS           0
-#define HD_RW           8 // not used if LCD is write-only (typical)
-#define HD_E            1
-#define HD_DB4         13
-#define HD_DB5         14
-#define HD_DB6         15
-#define HD_DB7         16
+#define HD_RS           495
+#define HD_RW           473 // not used if LCD is write-only (typical)
+#define HD_E            491
+#define HD_DB4         490
+#define HD_DB5         488
+#define HD_DB6         487
+#define HD_DB7         486
 
 #define COMMAND_CHAR   0xff // ASCII 255 = nbsp
 
