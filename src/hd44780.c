@@ -15,14 +15,15 @@
 #include <linux/fs.h>
 #include <linux/delay.h>
 #include <asm/uaccess.h>
-#include </home/z/o/lede/build_dir/target-mips_mips32_musl/hd44780-0.1/gpio.h>
+//#include <asm/gpio.h>  //can't autofind it in LEDE source
+#include "gpio.h"
 
 
 // You'll need to change these values to suit your board's available GPIOs
 // These are convenient (adjacent) pins on the GS-Oolite v1.0
 //      Pin ID     GPIO number
 #define HD_RS           495
-#define HD_RW           473 // not used if LCD is write-only (typical)
+//#define HD_RW           473 // not used if LCD is write-only (typical)
 #define HD_E            491
 #define HD_DB4         490
 #define HD_DB5         488
@@ -31,35 +32,55 @@
 
 #define COMMAND_CHAR   0xff // ASCII 255 = nbsp
 
+// Try to add params
+
+static int hd_rs = 495;
+module_param( hd_rs, int, 0);
+
+static int hd_e = 491;
+module_param( hd_e, int, 0);
+
+static int hd_db4 = 490;
+module_param( hd_db4, int, 0);
+static int hd_db5 = 488;
+module_param( hd_db5, int, 0);
+static int hd_db6 = 487;
+module_param( hd_db6, int, 0);
+static int hd_db7 = 486;
+module_param( hd_db7, int, 0);
+
+
+
+
 // Structures to hold the pins we've successfully allocated.
-typedef struct PinSet {
-	int pin;      // Linux GPIO pin number
-	char* name;   // Name of the pin, supplied to gpio_request()
-	int result;   // set to zero on successfully obtaining pin
-} tPinSet;
+//typedef struct PinSet {
+//	int pin;      // Linux GPIO pin number
+//	char* name;   // Name of the pin, supplied to gpio_request()
+//	int result;   // set to zero on successfully obtaining pin
+//} tPinSet;
 
 
-static tPinSet pins[] = {
-	{HD_E,   "HD44780_E",   -1},
-	{HD_RW,  "HD44780_RW",  -1},
-	{HD_RS,  "HD44780_RS",  -1},
-	{HD_DB4, "HD44780_DB4", -1},
-	{HD_DB5, "HD44780_DB5", -1},
-	{HD_DB6, "HD44780_DB6", -1},
-	{HD_DB7, "HD44780_DB7", -1},
-};
+//static tPinSet pins[] = {
+//	{hd_e,   "HD44780_E",   -1},
+//	{HD_RW,  "HD44780_RW",  -1}, //not need, RW on ground
+//	{hd_rs,  "HD44780_RS",  -1},
+//	{hd_db4, "HD44780_DB4", -1},
+//	{hd_db5, "HD44780_DB5", -1},
+//	{hd_db6, "HD44780_DB6", -1},
+//	{hd_db7, "HD44780_DB7", -1},
+//};
 
-#define PINS_NEEDED (sizeof(pins)/sizeof(tPinSet))
+//#define PINS_NEEDED (sizeof(pins)/sizeof(tPinSet))
 
 
 // Macros for setting control lines
-#define HD_RS_LOW  gpio_set_value(HD_RS, 0);
-#define HD_RS_HIGH gpio_set_value(HD_RS, 1);
-#define HD_E_LOW   gpio_set_value(HD_E, 0);
-#define HD_E_HIGH  gpio_set_value(HD_E, 1);
+#define HD_RS_LOW  gpio_set_value(hd_rs, 0);
+#define HD_RS_HIGH gpio_set_value(hd_rs, 1);
+#define HD_E_LOW   gpio_set_value(hd_e, 0);
+#define HD_E_HIGH  gpio_set_value(hd_e, 1);
 
 
-MODULE_AUTHOR("brnt");
+MODULE_AUTHOR("Timkaz+brnt");
 MODULE_LICENSE("GPL");
 
 
@@ -98,37 +119,37 @@ static int hd44780_ioctl(struct inode *inode, struct file *file,
 static void WriteNibble(unsigned int val)
 {
 	HD_E_LOW;
-	gpio_set_value(HD_DB4, (val&0x1));
-	gpio_set_value(HD_DB5, (val&0x2)>>1);
-	gpio_set_value(HD_DB6, (val&0x4)>>2);
-	gpio_set_value(HD_DB7, (val&0x8)>>3);
-	udelay(1);   // data setup time
+	gpio_set_value(hd_db4, (val&0x1));
+	gpio_set_value(hd_db5, (val&0x2)>>1);
+	gpio_set_value(hd_db6, (val&0x4)>>2);
+	gpio_set_value(hd_db7, (val&0x8)>>3);
+	udelay(3);   // data setup time
 	HD_E_HIGH;
-	udelay(1);
+	udelay(3);
 	HD_E_LOW;
-	udelay(1);    // data hold time
+	udelay(3);    // data hold time
 }
 
 // Write char data to display
 static void WriteData(char c)
 {
-	udelay(1);
+	udelay(3);
 	HD_RS_HIGH;
-	udelay(1);
+	udelay(3);
 	WriteNibble((c>>4)&0xf);
 	WriteNibble(c&0xf);
-	udelay(50);
+	udelay(60);
 }
 
 // Send command code to the display
 static void WriteCommand(char c)
 {
-	udelay(1);
+	udelay(3);
 	HD_RS_LOW;
-	udelay(1);
+	udelay(3);
 	WriteNibble((c>>4)&0xf);
 	WriteNibble(c&0xf);
-	udelay(50);
+	udelay(60);
 }
 
 // Called when writing to the device file.
@@ -153,7 +174,7 @@ static ssize_t hd44780_write(struct file *file, const char *buf, size_t count, l
 			if (err != 0)
 				return -EFAULT;
 
-			mdelay(20);
+			mdelay(25);
 			WriteCommand(c);
 		}
 	}
@@ -189,15 +210,22 @@ static struct miscdevice hd44780_device = {
 // Return any acquired pins.
 static void FreePins(void)
 {
-	int i;
-	for (i=0;i<PINS_NEEDED;i++)
-	{
-		if (pins[i].result == 0)
-		{
-			gpio_free(pins[i].pin);
-			pins[i].result = -1;    // defensive programming - avoid multiple free.
-		}
-	}
+//	int i;
+//	for (i=0;i<PINS_NEEDED;i++)
+//	{
+//		if (pins[i].result == 0)
+//		{
+//			gpio_free(pins[i].pin);
+//			pins[i].result = -1;    // defensive programming - avoid multiple free.
+//		}
+//	}
+    gpio_free(hd_rs);
+    gpio_free(hd_e);
+    gpio_free(hd_db4);
+    gpio_free(hd_db5);
+    gpio_free(hd_db6);
+    gpio_free(hd_db7);
+
 }
 
 static int __init hd44780_init(void)
@@ -212,12 +240,26 @@ static int __init hd44780_init(void)
 	}
 
 	// Request pins
-	for (i=0;i<PINS_NEEDED;i++)
-	{
-		pins[i].result = gpio_request(pins[i].pin,pins[i].name);
-		if (pins[i].result != 0)
-			got_pins = 0;
-	}
+//	for (i=0;i<PINS_NEEDED;i++)
+//	{
+//		pins[i].result = gpio_request(pins[i].pin,pins[i].name);
+//		if (pins[i].result != 0)
+//			got_pins = 0;
+//	}
+
+	got_pins+= gpio_request(hd_rs,"HD44780_RS"); // init gpio pin and add result to got_pins.
+	got_pins+= gpio_request(hd_e,"HD44780_E");
+	got_pins+= gpio_request(hd_db4,"HD44780_DB4");
+	got_pins+= gpio_request(hd_db5,"HD44780_DB5");
+	got_pins+= gpio_request(hd_db6,"HD44780_DB6");
+	got_pins+= gpio_request(hd_db7,"HD44780_DB7");
+	gpio_direction_output(hd_rs,0);
+	gpio_direction_output(hd_e,0);
+	gpio_direction_output(hd_db4,0);
+	gpio_direction_output(hd_db5,0);
+	gpio_direction_output(hd_db6,0);
+	gpio_direction_output(hd_db7,0);
+
 
 	// On any failures, return any pins we managed to get and quit.
 	if (!got_pins)
@@ -228,26 +270,39 @@ static int __init hd44780_init(void)
 
 	// Set port direction.  We assume we can do this if we got the pins.
 	// Set initial values to low (0v).
-	for (i=0;i<PINS_NEEDED;i++)
-	{
-		gpio_direction_output(pins[i].pin,0);
-	}
+//	for (i=0;i<PINS_NEEDED;i++)
+//	{
+//		gpio_direction_output(pins[i].pin,0);
+//	}
 
 	// Power on and setup the display
 	WriteCommand(0x33);
-	udelay(50);
+	udelay(60);
 	WriteCommand(0x32);
-	udelay(50);
+	udelay(60);
 	WriteCommand(0x28);
-	udelay(50);
+	udelay(60);
 	WriteCommand(0x0c);
-	udelay(50);
+	udelay(60);
 	WriteCommand(0x01);
-	udelay(50);
+	udelay(60);
 	WriteCommand(0x06);
-	udelay(50);
+	udelay(60);
 
-	printk(KERN_INFO "hd44780 LCD driver (v1.1) loaded.\n");
+
+	printk(KERN_INFO "hd44780 LCD driver (v1.1.z) loaded.\n");
+
+       printk( KERN_INFO "========================================\n" ); 
+       printk( KERN_INFO " rs gpio = %d\n", hd_rs ); 
+       printk( KERN_INFO " e  gpio = %d\n", hd_e ); 
+       printk( KERN_INFO "db4 gpio = %d\n", hd_db4 ); 
+       printk( KERN_INFO "db5 gpio = %d\n", hd_db5 ); 
+       printk( KERN_INFO "db6 gpio = %d\n", hd_db6 ); 
+       printk( KERN_INFO "db7 gpio = %d\n", hd_db7 ); 
+       printk( KERN_INFO "%s\n========================================\n" ); 
+
+
+
 	return 0;
 }
 
